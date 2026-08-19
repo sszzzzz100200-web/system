@@ -3,13 +3,15 @@ def negotiate():
     data = request.json
     msg = data.get('message', '').lower()
     
-    # تحسين الفحص: إذا وجد أي حرف من كلماتك في رسالة المستخدم
-    if any(word in msg for word in ["انطلق", "ابدأ", "شغل", "زاحف", "تحليلات", "تقرير"]):
-        return jsonify({"reply": f"🚀 جاري إطلاق الزواحف! تم رصد 10 فرص تجارية في السوق الآن. التقرير المتقدم جاهز بـ 250 ريال. حول على PayPal: {STORE_CONFIG['paypal_email']} وأرسل الإيصال."})
+    # قائمة الكلمات المفتاحية
+    start_keywords = ["انطلق", "ابدأ", "شغل", "تقرير"]
+    price_keywords = ["سعر", "غالي", "بكم", "خصم"]
+
+    if any(word in msg for word in start_keywords):
+        return jsonify({"reply": "🚀 تم إطلاق الزواحف! التقرير المتقدم بـ 250 ريال. حول عبر PayPal للبدء."})
     
-    elif any(word in msg for word in ["سعر", "غالي", "بكم", "خصم", "ميزانية"]):
-        return jsonify({"reply": "الأسعار استثمارية: 150 للأساسي، و250 للمتقدم. كل ريال تدفعه سيعود عليك بأضعاف في مبيعات متجرك. أيهما نعتمد؟"})
+    elif any(word in msg for word in price_keywords):
+        return jsonify({"reply": "الأسعار: 150 للأساسي، 250 للمتقدم. كل ريال هو استثمار في أرباحك."})
     
     else:
-        # رد متنوع في حال لم يفهم الكلمة
-        return jsonify({"reply": "أنا معك، اسمعك. هل نبدأ بـ 150 (أساسي) أو 250 (متقدم)؟"})
+        return jsonify({"reply": "مرحباً! هل نبدأ بالتقرير الأساسي (150) أو الشامل (250)؟"})

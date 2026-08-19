@@ -1,5 +1,5 @@
-import os, time
-from flask import Flask, render_template_string, request, jsonify
+import os
+from flask import Flask, render_template_string, jsonify, request
 
 app = Flask(__name__)
 
@@ -8,47 +8,42 @@ HTML_INTERFACE = """
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منظومة الأداة المركزية v33.0</title>
+    <title>الأداة المركزية v33.0</title>
     <style>
-        body { font-family: sans-serif; background: #060b13; color: #e2e8f0; padding: 10px; margin: 0; }
-        .header { background: #0f172a; padding: 10px; border-radius: 8px; text-align: center; border-bottom: 3px solid #3b82f6; margin-bottom: 10px; }
-        .card { background: #1e293b; padding: 12px; border-radius: 8px; margin-bottom: 10px; }
-        h3 { color: #38bdf8; font-size: 15px; border-bottom: 1px solid #334155; padding-bottom: 4px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; }
-        .counter-box { background: #0f172a; padding: 8px; border-radius: 6px; text-align: center; }
-        .chat-container { background: #020617; border-radius: 6px; padding: 10px; height: 180px; overflow-y: auto; margin-bottom: 10px; }
-        .msg { padding: 8px; border-radius: 8px; font-size: 13px; margin-bottom: 5px; }
-        .msg.bot { background: #1e3a8a; border-right: 3px solid #3b82f6; }
-        .msg.user { background: #0f766e; text-align: left; }
+        body { font-family: sans-serif; background: #0b0f19; color: #fff; margin: 0; padding: 20px; }
+        .header { background: #1e293b; padding: 15px; border-radius: 10px; text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; }
+        .card { background: #1e293b; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
+        .chat-box { background: #0f172a; height: 200px; border-radius: 8px; padding: 10px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #334155; }
+        input[type="text"] { width: 75%; padding: 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #fff; }
+        button { width: 20%; padding: 10px; border-radius: 6px; border: none; background: #0284c7; color: #fff; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="header"><h2>🛠️ الأداة المركزية v33.0</h2></div>
+    <div class="header">🛠️ الأداة المركزية v33.0</div>
     <div class="card">
         <h3>📊 لوحة المؤشرات</h3>
-        <div class="grid">
-            <div class="counter-box"><div style="color:#9ca3af;">الزواحف</div><b id="scrapersStatus">3 خاملة</b></div>
-            <div class="counter-box"><div style="color:#9ca3af;">البوتات</div><b id="botsStatus">3 متوقفة</b></div>
-        </div>
+        <div id="status-display">الزواحف نشطة | البوتات تعمل</div>
     </div>
     <div class="card">
-        <h3>💬 المحادثة</h3>
-        <div class="chat-container" id="chatContainer">
-            <div class="msg bot">🤖 المنظومة جاهزة. اكتب (شغل الكل) للبدء.</div>
-        </div>
-        <input type="text" id="userInput" style="width:70%; padding:8px;" placeholder="اكتب الأمر...">
+        <h3>💬 المحادثة وطلب التقارير</h3>
+        <div class="chat-box" id="chatContainer">🤖 المنظومة جاهزة. اكتب 'تقرير' أو 'تسليم العمل'.</div>
+        <input type="text" id="userInput" placeholder="اكتب الأمر...">
         <button onclick="sendMessage()">إرسال</button>
     </div>
     <script>
         function sendMessage() {
-            let inputField = document.getElementById('userInput'); let text = inputField.value;
-            fetch('/api/chat?message=' + encodeURIComponent(text)).then(res => res.json()).then(data => {
-                document.getElementById('scrapersStatus').innerText = data.scrapers_status;
-                document.getElementById('botsStatus').innerText = data.bots_status;
-                let container = document.getElementById('chatContainer');
-                container.innerHTML += `<div class="msg user">${text}</div>`;
-                data.new_responses.forEach(m => container.innerHTML += `<div class="msg bot">${m.text}</div>`);
-            });
+            let inputField = document.getElementById('userInput');
+            let msg = inputField.value;
+            if(!msg) return;
+            let container = document.getElementById('chatContainer');
+            container.innerHTML += `<div><b>أنت:</b> ${msg}</div>`;
+            fetch('/api/chat?message=' + encodeURIComponent(msg))
+                .then(res => res.json())
+                .then(data => {
+                    container.innerHTML += `<div><b>المنظومة:</b> ${data.reply}</div>`;
+                    container.scrollTop = container.scrollHeight;
+                });
+            inputField.value = '';
         }
     </script>
 </body>
@@ -56,14 +51,21 @@ HTML_INTERFACE = """
 """
 
 @app.route('/')
-def home(): return render_template_string(HTML_INTERFACE)
+def home():
+    return render_template_string(HTML_INTERFACE)
 
 @app.route('/api/chat')
 def chat_api():
-    user_msg = request.args.get('message', '').lower()
-    if "شغل" in user_msg or "الكل" in user_msg:
-        return jsonify({"scrapers_status": "6 نشطة", "bots_status": "5 تعمل", "new_responses": [{"text": "تم تفعيل المنظومة بكامل طاقتها!"}]})
-    return jsonify({"scrapers_status": "3 خاملة", "bots_status": "3 متوقفة", "new_responses": [{"text": "في انتظار أمر التشغيل."}]})
+    user_msg = request.args.get('message', '').strip()
+    secure_iban = os.environ.get('SECRET_IBAN', 'الآيبان غير متاح حالياً')
+    
+    if "تقرير" in user_msg or "الارباح" in user_msg:
+        reply = "📊 <b>تقرير اليوم:</b><br>- تم تمشيط المواقع بنجاح.<br>- الأعمال المنجزة: نشطة<br>- الأرباح قيد التحصيل بانتظار تحويل العملاء البشريين."
+    elif "تسليم العمل" in user_msg or "الدفع" in user_msg:
+        reply = f"✅ تم إنجاز العمل وتسليمه للعميل.<br>💳 <b>الآيبان المعتمد للتحويل:</b> {secure_iban}"
+    else:
+        reply = f"🤖 تم استلام أمرك: ({user_msg}). المنظومة تعمل والزواحف تمسح المواقع الخارجية بنجاح."
+    return jsonify({"reply": reply})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 8080))

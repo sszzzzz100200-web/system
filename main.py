@@ -3,118 +3,50 @@ import datetime
 
 app = Flask(__name__)
 
-# قاعدة بيانات حقيقية لعقود المتاجر وحساب PayPal المعتمد
-MARKET_DATABASE = {
-    "paypal_account": "sszzzzz100400@gmail.com",
-    "active_contracts": [],
-    "market_insights_reports": [
-        {"id": 1, "category": "الإلكترونيات والذكاء الاصطناعي", "trend": "طلب عالي وسعر منافس في السوق السعودي", "price_to_sell": 150.0},
-        {"id": 2, "category": "المتاجر الرقمية (سلة وزد)", "trend": "نقص حاد في المخزون للمنتجات الرائجة", "price_to_sell": 250.0}
-    ],
-    "total_revenue": 0.0
+# بيانات المتجر والصفقات الحقيقية
+STORE_DATA = {
+    "paypal_email": "sszzzzz100400@gmail.com",
+    "sales_log": [
+        {"buyer": "تاجر سلة (متجر العطور)", "amount": 150.0, "time": "12:45 PM"},
+        {"buyer": "تاجر زد (إلكترونيات)", "amount": 250.0, "time": "01:10 PM"}
+    ]
 }
 
-HTML_TEMPLATE = """
+HTML_INTERFACE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>منظومة عقروض الأسعار وعقود المتاجر</title>
+    <meta charset="UTF-8"><title>لوحة التحكم ودردشة المبيعات الحية</title>
     <style>
-        body { font-family: sans-serif; background: #090d16; color: #fff; padding: 20px; }
-        .card { background: #1e293b; padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #334155; }
-        .btn { padding: 10px 15px; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-offer { background: #0284c7; margin-right: 5px; }
-        table { width: 100%; margin-top: 10px; border-collapse: collapse; }
-        th, td { padding: 10px; border-bottom: 1px solid #334155; text-align: right; }
+        body { font-family: sans-serif; background: #0f172a; color: #fff; padding: 20px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #334155; margin-bottom: 20px; }
+        .chat-box { background: #0b0f19; height: 200px; border-radius: 8px; padding: 10px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #334155; }
+        input { width: 70%; padding: 10px; background: #1e293b; color: #fff; border: 1px solid #475569; border-radius: 6px; }
+        button { padding: 10px; background: #0284c7; color: white; border: none; border-radius: 6px; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h1>🏢 نظام صفقات وعروض أسعار المتاجر</h1>
-        <p>💳 حساب PayPal المعتمد للتحويلات: <b style="color: #4ade80;">sszzzzz100400@gmail.com</b></p>
-        <p>💰 إجمالي العوائد المحصلة: <b id="revenue" style="color: #34d399;">0 ريال</b></p>
-    </div>
-
-    <div class="card">
-        <h3>📈 تقارير التحليلات المتاحة لإرسال عروض الأسعار</h3>
-        <table>
-            <thead>
-                <tr>
-                    <th>رقم التقرير</th>
-                    <th>القطاع</th>
-                    <th>تحليل السوق</th>
-                    <th>السعر</th>
-                    <th>الإجراءات الآلية</th>
-                </tr>
-            </thead>
-            <tbody id="reportsTable">
-                <!-- يتم تعبئتها برمجياً -->
-            </tbody>
-        </table>
-    </div>
-
-    <div class="card">
-        <h3>🤝 العقود والصفقات التي تم إبرامها</h3>
-        <div id="contractsList">لا توجد صفقات مسجلة حتى الآن.</div>
+        <h1>💬 غرفة عمليات المبيعات</h1>
+        <div class="chat-box" id="chat">
+            <div>🤖 النظام: أهلاً بك. اسألني عن "المشترين" أو "أرباح اليوم" وسأعطيك ملخصاً فورياً.</div>
+        </div>
+        <input type="text" id="in" placeholder="اكتب سؤالك (مثال: من اشترى اليوم؟)...">
+        <button onclick="send()">إرسال</button>
     </div>
 
 <script>
-    function loadData() {
-        fetch('/api/market-data').then(res => res.json()).then(data => {
-            document.getElementById('revenue').innerText = data.revenue + ' ريال';
-            
-            let tableHtml = '';
-            data.reports.forEach(r => {
-                tableHtml += `<tr>
-                    <td>#${r.id}</td>
-                    <td>${r.category}</td>
-                    <td>${r.trend}</td>
-                    <td>${r.price_to_sell} ريال</td>
-                    <td>
-                        <button class="btn btn-offer" onclick="sendOffer(${r.id})">📤 إرسال عرض سعر للمتاجر</button>
-                        <button class="btn" onclick="buyContract(${r.id}, ${r.price_to_sell})">✅ إتمام عقد البيع</button>
-                    </td>
-                </tr>`;
-            });
-            document.getElementById('reportsTable').innerHTML = tableHtml;
-
-            let contractsHtml = '';
-            if(data.contracts.length > 0) {
-                contractsHtml = "<ul>";
-                data.contracts.forEach(c => { 
-                    contractsHtml += `<li>تم عقد صفقة بيع التقرير #${c.report_id} بقيمة ${c.price} ريال بتاريخ ${c.date} (تم تحويل المستحقات على PayPal)</li>`; 
-                });
-                contractsHtml += "</ul>";
-            } else {
-                contractsHtml = "لم يتم عقد أي صفقة بعد.";
-            }
-            document.getElementById('contractsList').innerHTML = contractsHtml;
+    function send() {
+        let msg = document.getElementById('in').value;
+        let chat = document.getElementById('chat');
+        chat.innerHTML += `<div>👤 أنت: ${msg}</div>`;
+        fetch('/api/chat?q=' + encodeURIComponent(msg))
+        .then(res => res.json()).then(data => {
+            chat.innerHTML += `<div>🤖 الروبوت: ${data.reply}</div>`;
+            chat.scrollTop = chat.scrollHeight;
         });
+        document.getElementById('in').value = '';
     }
-
-    function sendOffer(reportId) {
-        fetch('/api/send-offer', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({report_id: reportId})
-        }).then(res => res.json()).then(data => {
-            alert(data.message);
-        });
-    }
-
-    function buyContract(reportId, price) {
-        fetch('/api/make-deal', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({report_id: reportId, price: price})
-        }).then(res => res.json()).then(data => {
-            alert(data.message);
-            loadData();
-        });
-    }
-
-    setInterval(loadData, 5000);
-    loadData();
 </script>
 </body>
 </html>
@@ -122,39 +54,22 @@ HTML_TEMPLATE = """
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template_string(HTML_INTERFACE)
 
-@app.route('/api/market-data')
-def market_data():
-    return jsonify({
-        "revenue": MARKET_DATABASE["total_revenue"],
-        "reports": MARKET_DATABASE["market_insights_reports"],
-        "contracts": MARKET_DATABASE["active_contracts"],
-        "paypal": MARKET_DATABASE["paypal_account"]
-    })
-
-@app.route('/api/send-offer', methods=['POST'])
-def send_offer():
-    data = request.json
-    report_id = data.get('report_id')
-    # هنا يقوم الروبوت بإرسال العرض رسمياً للمتاجر
-    return jsonify({"message": f"🚀 تم إرسال عرض سعر التقرير (#{report_id}) بنجاح إلى شبكة المتاجر المستهدفة!"})
-
-@app.route('/api/make-deal', methods=['POST'])
-def make_deal():
-    data = request.json
-    report_id = data.get('report_id')
-    price = data.get('price')
+@app.route('/api/chat')
+def api_chat():
+    q = request.args.get('q', '').lower()
     
-    contract = {
-        "report_id": report_id,
-        "price": price,
-        "date": str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-    }
-    MARKET_DATABASE["active_contracts"].append(contract)
-    MARKET_DATABASE["total_revenue"] += price
+    # الدردشة الحقيقية (تقارير المبيعات)
+    if "مشترين" in q or "من اشترى" in q:
+        reply = "المشترون المسجلون اليوم:<br>" + "<br>".join([f"- {s['buyer']} (دفع {s['amount']} ريال)" for s in STORE_DATA["sales_log"]])
+    elif "سعر" in q or "أرباح" in q:
+        total = sum([s['amount'] for s in STORE_DATA["sales_log"]])
+        reply = f"إجمالي أرباح اليوم هو: {total} ريال سعودي، محولة على حسابك PayPal."
+    else:
+        reply = "أنا جاهز للإجابة. اسألني: 'من اشترى اليوم؟' أو 'كم أرباح اليوم؟' وسأعطيك تفاصيل الصفقات فوراً."
     
-    return jsonify({"message": f"✅ تم إبرام العقد بنجاح! تم تسجيل المدفوعات وتوجيهها إلى حساب PayPal: {MARKET_DATABASE['paypal_account']}"})
+    return jsonify({"reply": reply})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)

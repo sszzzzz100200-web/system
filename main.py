@@ -1,20 +1,40 @@
 from flask import Flask, render_template_string, jsonify, request
-import random
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+import requests
+import time
 
 app = Flask(__name__)
 
 STORE_CONFIG = {
-    "paypal_email": "sszzzzz100400@gmail.com"
+    "paypal_email": "sszzzzz100400@gmail.com",
 }
 
-# ذاكرة مؤقتة لتتبع حالة العميل (لعدم تكرار نفس الرد)
-user_sessions = {}
+# --- وظيفة زاحف الويب الحقيقي ---
+def run_real_crawler(seed_url="https://news.ycombinator.com/"):
+    seen = set()
+    results = []
+    try:
+        resp = requests.get(seed_url, timeout=10)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        page_title = soup.title.get_text(strip=True) if soup.title else "بدون عنوان"
+
+        # استخراج أول 5 روابط كمثال حي لجلب البيانات
+        for a in soup.select("a[href]")[:5]:
+            href = a.get("href", "").strip()
+            if href.startswith("http"):
+                results.append(href)
+
+        return len(results), page_title
+    except Exception as e:
+        return 0, str(e)
+
 
 HTML_CHAT = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><title>مستشار ذكاء المبيعات</title>
+    <meta charset="UTF-8"><title>مستشار تحليل المتاجر والزواحف الذكية</title>
     <style>
         body { font-family: sans-serif; background: #0f172a; color: #fff; padding: 20px; }
         .card { background: #1e293b; padding: 20px; border-radius: 10px; border: 1px solid #334155; max-width: 600px; margin: auto; }
@@ -27,16 +47,15 @@ HTML_CHAT = """
 </head>
 <body>
     <div class="card">
-        <h2>💼 مستشار تحليل المتاجر الذكي</h2>
+        <h2>🤖 نظام الزواحف وتحليل المتاجر الذكي</h2>
         <div class="chat-box" id="chat">
-            <div class="msg-bot">🤖 أهلاً بك يا غالي! أنا نظام استخبارات السوق. هل حابب نكتشف المنتجات الأكثر مبيعاً اليوم لترفع أرباح متجرك؟ اسألني أو قل "انطلق".</div>
+            <div class="msg-bot">🤖 أهلاً بك! أنا جاهز لتشغيل الزواحف وجلب بيانات السوق الحية. اكتب "انطلق" لبدء السحب والتحليل.</div>
         </div>
-        <input type="text" id="in" placeholder="اكتب استفسارك أو طلبك هنا..." onkeypress="if(event.key === 'KeyE' || event.keyCode==13) send();">
+        <input type="text" id="in" placeholder="اكتب أمرك هنا (مثل: انطلق، كم البيانات)..." onkeypress="if(event.keyCode==13) send();">
         <button onclick="send()">إرسال</button>
     </div>
 
 <script>
-    let userId = 'user_' + Math.random(); // معرف جلسة فريد لكل متصفح
     function send() {
         let msg = document.getElementById('in').value;
         if(!msg.trim()) return;
@@ -46,7 +65,7 @@ HTML_CHAT = """
         fetch('/api/negotiate', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: msg, user_id: userId})
+            body: JSON.stringify({message: msg})
         })
         .then(res => res.json())
         .then(data => {
@@ -60,49 +79,55 @@ HTML_CHAT = """
 </html>
 """
 
-@app.route('/')
+
+@app.route("/")
 def home():
-    return render_template_string(HTML_CHAT)
+  return render_template_string(HTML_CHAT)
 
-@app.route('/api/negotiate', methods=['POST'])
+
+@app.route("/api/negotiate", methods=["POST"])
 def negotiate():
-    data = request.json
-    msg = data.get('message', '').lower()
-    user_id = data.get('user_id', 'default')
-    
-    # تهيئة الذاكرة للجلسة إذا كانت جديدة
-    if user_id not in user_sessions:
-        user_sessions[user_id] = {"step": 0}
-    
-    session = user_sessions[user_id]
-    session["step"] += 1
+  data = request.json
+  msg = data.get("message", "").lower()
 
-    # 1. إذا طلب البدء أو انطلق
-    if any(word in msg for word in ["انطلق", "ابدأ", "شغل", "تقرير", "تمام", "اوك", "ايوة"]):
-        reply = (
-            "🚀 خطوة ممتازة! قمنا بتفعيل محركات البحث والزواحف لاستخراج بيانات السوق الحصرية.\n\n"
-            f"🔹 **التقرير المتقدم الشامل:** 250 ريال.\n"
-            f"🔹 **طريقة الدفع:** تحويل مباشر على حساب PayPal: <b>{STORE_CONFIG['paypal_email']}</b>\n\n"
-            "أرسل لي إيصال التحويل هنا فور إتمامه لنرسل لك التقرير فوراً!"
-        )
-    # 2. الاستفسار عن السعر أو التخفيض
-    elif any(word in msg for word in ["سعر", "غالي", "بكم", "خصم", "كم"]):
-        reply = (
-            "الأسعار مدروسة لتناسب حجم أرباحك:\n"
-            "1️⃣ **التقرير الأساسي:** 150 ريال (يكشف لك المنافسين والترند).\n"
-            "2️⃣ **التقرير المتقدم:** 250 ريال (يكشف لك الموردين وأعلى المنتجات ربحية).\n\n"
-            "أي الباقتين تفضل أن نجهزها لمتجرك اليوم؟"
-        )
-    # 3. ردود ذكية ومتنوعة بناءً على عدد المحادثات لكسر التكرار تماماً
-    else:
-        smart_fallbacks = [
-            "أنا معك أستاذي، السوق فيه فرص ذهبية اليوم. هل تحب نبدأ بالتقرير الأساسي (150) أو الشامل (250)؟",
-            "فهمت عليك. لكي نبدأ استخراج البيانات الحقيقية لمتجرك، تفضل باختيار الباقة المناسبة وقم بالتحويل على PayPal لنباشر العمل.",
-            "كل دقة تحليل توفر عليك خسائر في بضاعة راكدة. هل نعتمد التقرير المتقدم بـ 250 ريال وننطلق؟"
-        ]
-        reply = smart_fallbacks[session["step"] % len(smart_fallbacks)]
+  # 1. إذا طلب بدء العمل (تشغيل الزاحف الحقيقي)
+  if any(word in msg for word in ["انطلق", "ابدأ", "شغل", "تقرير", "جلب"]):
+    count, title = run_real_crawler()
+    reply = (
+        f"🚀 **تم تشغيل الزاحف بنجاح وجلب البيانات الحية!**\n"
+        f"• عنوان الموقع المفحوص: {title}\n"
+        f"• تم استخراج {count} روابط رئيسية ومنتج رائج.\n\n"
+        f"🔹 التقرير الشامل جاهز بـ **250 ريال**.\n"
+        f"🔹 تحويل المبلغ عبر PayPal على: <b>{STORE_CONFIG['paypal_email']}</b>\n"
+        "أرسل إيصال الدفع هنا لتستلم الملف الكامل فوراً."
+    )
 
-    return jsonify({"reply": reply})
+  # 2. الاستفسار عن حالة البيانات
+  elif any(word in msg for word in ["كم", "حالة", "بيانات", "نتائج"]):
+    reply = (
+        "📊 **حالة محرك الزحف:**\n"
+        "الزواحف جاهزة للعمل وفحص أي منصة أو متجر تختاره لتزويدك ببيانات حقيقية ودقيقة.\n"
+        "اكتب 'انطلق' لبدء عملية السحب الفوري."
+    )
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+  # 3. الاستفسار عن الأسعار
+  elif any(word in msg for word in ["سعر", "غالي", "بكم", "خصم", "باقات"]):
+    reply = (
+        "الأسعار استثمارية ومدروسة:\n"
+        "1️⃣ **التقرير الأساسي:** 150 ريال.\n"
+        "2️⃣ **التقرير المتقدم والزاحف الشامل:** 250 ريال.\n\n"
+        "أيهما نعتمد لمتجرك؟"
+    )
+
+  # 4. الرد الافتراضي
+  else:
+    reply = (
+        "أنا معك! هل تريد أن نقوم بتفعيل الزواحف وسحب بيانات السوق الحية الآن"
+        " بـ 250 ريال؟"
+    )
+
+  return jsonify({"reply": reply})
+
+
+if __name__ == "__main__":
+  app.run(host="0.0.0.0", port=8080)

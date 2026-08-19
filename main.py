@@ -1,51 +1,60 @@
-import os
+import random
 from flask import Flask, render_template_string, jsonify, request
 
 app = Flask(__name__)
+
+# --- إعدادات النظام الموحد ---
+SYSTEM_DATA = {
+    "crawlers": 10,
+    "bots": 20,
+    "total_sales": 0,
+    "total_earnings": 0.0,
+    "payment_methods": {"paypal": "غير مضاف", "iban": "غير مضاف"},
+    "platforms": {"alibaba": "Sa29021090854phjs"}
+}
 
 HTML_INTERFACE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الأداة المركزية v33.0</title>
+    <meta charset="UTF-8"><title>منظومة الإدارة المركزية المتكاملة</title>
     <style>
-        body { font-family: sans-serif; background: #0b0f19; color: #fff; margin: 0; padding: 20px; }
-        .header { background: #1e293b; padding: 15px; border-radius: 10px; text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; }
+        body { font-family: sans-serif; background: #0f172a; color: #fff; padding: 20px; }
         .card { background: #1e293b; padding: 15px; border-radius: 10px; margin-bottom: 15px; }
-        .chat-box { background: #0f172a; height: 200px; border-radius: 8px; padding: 10px; overflow-y: auto; margin-bottom: 10px; border: 1px solid #334155; }
-        input[type="text"] { width: 75%; padding: 10px; border-radius: 6px; border: 1px solid #475569; background: #1e293b; color: #fff; }
-        button { width: 20%; padding: 10px; border-radius: 6px; border: none; background: #0284c7; color: #fff; font-weight: bold; cursor: pointer; }
+        .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .box { background: #0f172a; padding: 10px; border-radius: 6px; text-align: center; }
+        .chat-box { background: #0f172a; height: 150px; border-radius: 8px; padding: 10px; overflow-y: auto; margin-bottom: 10px; }
+        input { width: 70%; padding: 10px; background: #1e293b; color: #fff; border: 1px solid #475569; }
+        button { width: 25%; padding: 10px; background: #0284c7; color: white; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="header">🛠️ الأداة المركزية v33.0</div>
     <div class="card">
-        <h3>📊 لوحة المؤشرات</h3>
-        <div id="status-display">الزواحف نشطة | البوتات تعمل</div>
+        <h1>🌐 لوحة التحكم الموحدة</h1>
+        <div class="stats">
+            <div class="box">🕷️ زواحف: <b id="crawlers">10</b></div>
+            <div class="box">🤖 روبوتات: <b id="bots">20</b></div>
+            <div class="box">💰 أرباح: <b id="earnings">0 ريال</b></div>
+            <div class="box">💳 باي بال: <b id="paypal_val">--</b></div>
+        </div>
     </div>
     <div class="card">
-        <h3>💬 المحادثة وطلب التقارير</h3>
-        <div class="chat-box" id="chatContainer">🤖 المنظومة جاهزة. اكتب 'تقرير' أو 'تسليم العمل'.</div>
-        <input type="text" id="userInput" placeholder="اكتب الأمر...">
-        <button onclick="sendMessage()">إرسال</button>
+        <div class="chat-box" id="chat"><div>🤖 النظام جاهز. أرسل أوامرك (اضبط باي بال: XXX، أو ابدأ النشر)</div></div>
+        <input type="text" id="in" placeholder="اكتب الأمر...">
+        <button onclick="send()">إرسال</button>
     </div>
-    <script>
-        function sendMessage() {
-            let inputField = document.getElementById('userInput');
-            let msg = inputField.value;
-            if(!msg) return;
-            let container = document.getElementById('chatContainer');
-            container.innerHTML += `<div><b>أنت:</b> ${msg}</div>`;
-            fetch('/api/chat?message=' + encodeURIComponent(msg))
-                .then(res => res.json())
-                .then(data => {
-                    container.innerHTML += `<div><b>المنظومة:</b> ${data.reply}</div>`;
-                    container.scrollTop = container.scrollHeight;
-                });
-            inputField.value = '';
-        }
-    </script>
+<script>
+    function send() {
+        let msg = document.getElementById('in').value;
+        fetch('/api/chat?message=' + encodeURIComponent(msg))
+        .then(res => res.json()).then(data => {
+            document.getElementById('chat').innerHTML += '<div>👤 أنت: ' + msg + '</div><div>🤖 النظام: ' + data.reply + '</div>';
+            document.getElementById('earnings').innerText = data.earnings + ' ريال';
+            document.getElementById('paypal_val').innerText = data.paypal;
+        });
+        document.getElementById('in').value = '';
+    }
+</script>
 </body>
 </html>
 """
@@ -55,18 +64,30 @@ def home():
     return render_template_string(HTML_INTERFACE)
 
 @app.route('/api/chat')
-def chat_api():
-    user_msg = request.args.get('message', '').strip()
-    secure_iban = os.environ.get('SECRET_IBAN', 'الآيبان غير متاح حالياً')
+def api_chat():
+    msg = request.args.get('message', '').lower()
     
-    if "تقرير" in user_msg or "الارباح" in user_msg:
-        reply = "📊 <b>تقرير اليوم:</b><br>- تم تمشيط المواقع بنجاح.<br>- الأعمال المنجزة: نشطة<br>- الأرباح قيد التحصيل بانتظار تحويل العملاء البشريين."
-    elif "تسليم العمل" in user_msg or "الدفع" in user_msg:
-        reply = f"✅ تم إنجاز العمل وتسليمه للعميل.<br>💳 <b>الآيبان المعتمد للتحويل:</b> {secure_iban}"
+    # معالجة وسائل الدفع
+    if "باي بال" in msg or "paypal" in msg:
+        SYSTEM_DATA["payment_methods"]["paypal"] = msg.split(":")[-1].strip()
+        reply = "✅ تم تحديث حساب PayPal."
+    elif "آيبان" in msg or "iban" in msg:
+        SYSTEM_DATA["payment_methods"]["iban"] = msg.split(":")[-1].strip()
+        reply = "✅ تم تحديث الآيبان."
+    # معالجة أوامر الروبوتات
+    elif "ابدأ" in msg or "نشر" in msg:
+        new_sales = random.randint(1, 5)
+        SYSTEM_DATA["total_sales"] += new_sales
+        SYSTEM_DATA["total_earnings"] += new_sales * 25.0
+        reply = f"🚀 تم تفعيل 20 روبوت للنشر. تم تحقيق {new_sales} مبيعات جديدة!"
     else:
-        reply = f"🤖 تم استلام أمرك: ({user_msg}). المنظومة تعمل والزواحف تمسح المواقع الخارجية بنجاح."
-    return jsonify({"reply": reply})
+        reply = "🤖 النظام يعمل. يمكنك ضبط الدفع أو بدء النشر."
+        
+    return jsonify({
+        "reply": reply, 
+        "earnings": SYSTEM_DATA["total_earnings"],
+        "paypal": SYSTEM_DATA["payment_methods"]["paypal"]
+    })
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=8080)

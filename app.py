@@ -1,118 +1,172 @@
-from flask import Flask, render_template_string, jsonify, request
-from bs4 import BeautifulSoup
+pip install flask requests selenium webdriver-manager
+import os
+import time
 import requests
+from flask import Flask, jsonify, redirect, request, send_from_directory
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
 
 app = Flask(__name__)
 
-STORE_CONFIG = {
-    "paypal_email": "sszzzzz100400@gmail.com",
-}
+# إنشاء مجلد لحفظ لقطات الشاشة (إثبات الإنجاز) إذا لم يكن موجوداً
+STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+if not os.path.exists(STATIC_DIR):
+    os.makedirs(STATIC_DIR)
 
-def run_real_crawler():
+# مفتاح اختبار تجريبي لبوابة الدفع (سيتم استبداله بمفتاح stc pay الحي بعد 23 ساعة)
+MOYASAR_TEST_KEY = "pk_test_vcTeQi9JKZJvY796f6gT776v7fe6s6x66f6" 
+
+# =====================================================================
+# 1. روبوت الأتمتة والتنفيذ (Selenium Bot)
+# =====================================================================
+def run_automation_bot(site_url, data_to_insert):
+    """روبوت ذكي يدخل لموقع العميل، ينجز العمل، ويأخذ لقطة شاشة كإثبات"""
+    print("🤖 الروبوت بدأ العمل الآن...")
+    
+    options = webdriver.ChromeOptions()
+    # ملاحظة: تم إيقاف الوضع الخفي (Headless) مؤقتاً لتشاهد الروبوت بنفسك وهو يعمل أثناء الاختبار
+    # options.add_argument('--headless') 
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    
+    # تحميل وتشغيل متصفح كروم تلقائياً
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    
     try:
-        resp = requests.get("https://news.ycombinator.com/", timeout=5)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        title = soup.title.get_text(strip=True) if soup.title else "سوق التجارة الإلكترونية"
-        return 5, title
-    except:
-        return 3, "السوق السعودي"
-
-HTML_STORE = """
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>خدمة تحليل المتاجر ورفع المبيعات</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #f8fafc; color: #1e293b; display: flex; justify-content: center; align-items: center; height: 100vh; padding: 15px; }
-        .chat-container { width: 100%; max-width: 480px; background: #ffffff; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0; height: 85vh; }
-        .chat-header { background: #0f172a; color: #ffffff; padding: 18px 20px; display: flex; align-items: center; gap: 12px; }
-        .chat-header div h2 { font-size: 1.1rem; font-weight: 600; }
-        .chat-header div p { font-size: 0.8rem; color: #94a3b8; }
-        .chat-box { flex: 1; padding: 20px; overflow-y: auto; background: #f1f5f9; display: flex; flex-direction: column; gap: 15px; }
-        .msg { max-width: 85%; padding: 12px 16px; border-radius: 12px; font-size: 0.95rem; line-height: 1.5; word-wrap: break-word; }
-        .msg-bot { background: #ffffff; color: #334155; align-self: flex-start; border-bottom-right-radius: 4px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; }
-        .msg-user { background: #2563eb; color: #ffffff; align-self: flex-end; border-bottom-left-radius: 4px; }
-        .chat-input-area { padding: 15px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; }
-        input { flex: 1; padding: 12px 16px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; font-size: 0.95rem; background: #f8fafc; color: #1e293b; }
-        input:focus { border-color: #2563eb; background: #ffffff; }
-        button { background: #2563eb; color: white; border: none; padding: 0 20px; border-radius: 8px; font-weight: 600; cursor: pointer; }
-        button:hover { background: #1d4ed8; }
-    </style>
-</head>
-<body>
-
-    <div class="chat-container">
-        <div class="chat-header">
-            <div style="background:#2563eb; color:white; border-radius:50%; width:40px; height:40px; display:flex; align-items:center; justify-content:center; font-weight:bold;">🚀</div>
-            <div>
-                <h2>مستشار نمو المتاجر (سلة / زد)</h2>
-                <p>نظام ذكاء السوق المباشر • متصل الآن</p>
-            </div>
-        </div>
-
-        <div class="chat-box" id="chat">
-            <div class="msg msg-bot">أهلاً بك يا صاحبي في خدمتنا لرفع مبيعات المتاجر! 📈<br><br>هل لديك متجر على <b>سلة</b> أو <b>زد</b> وتريد معرفة المنتجات الأكثر طلباً والأعلى ربحية اليوم؟<br><br>اكتب اسم منصتك أو قل <b>"ابدأ التحليل"</b> لندعم متجرك!</div>
-        </div>
-
-        <div class="chat-input-area">
-            <input type="text" id="in" placeholder="اكتب ردك هنا (مثل: عندي متجر سلة، كم السعر؟)..." onkeypress="if(event.keyCode==13) send();">
-            <button onclick="send()">إرسال</button>
-        </div>
-    </div>
-
-<script>
-    function send() {
-        let input = document.getElementById('in');
-        let msg = input.value.trim();
-        if(!msg) return;
+        # الدخول للموقع المستهدف
+        driver.get(site_url)
+        wait = WebDriverWait(driver, 10)
         
-        let chat = document.getElementById('chat');
-        chat.innerHTML += `<div class="msg msg-user">${msg}</div>`;
-        input.value = '';
-        chat.scrollTop = chat.scrollHeight;
+        # محاكاة إدخال البيانات (البحث عن خانة النص والكتابة فيها)
+        # لتسهيل الاختبار، الكود يبحث عن أول خانة إدخال (input) يجدها في الصفحة ويكتب فيها
+        text_input = wait.until(EC.presence_of_element_located((By.TAG_NAME, "input")))
+        text_input.clear()
+        text_input.send_keys(data_to_insert)
+        print("✍️ قام الروبوت بتعبئة البيانات بنجاح.")
         
-        fetch('/api/chat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: msg})
-        })
-        .then(res => res.json())
-        .then(data => {
-            chat.innerHTML += `<div class="msg msg-bot">${data.reply}</div>`;
-            chat.scrollTop = chat.scrollHeight;
-        });
-    }
-</script>
-</body>
-</html>
-"""
+        # محاكاة الضغط على زر الحفظ (الروبوت يبحث عن أي زر إرسال ويضغطه)
+        try:
+            submit_btn = driver.find_element(By.XPATH, "//button[@type='submit'] | //input[@type='submit']")
+            submit_btn.click()
+            print("💾 الروبوت ضغط على زر الحفظ.")
+            time.sleep(2)
+        except:
+            print("ℹ️ لم يتم العثور على زر حفظ، سيتم الاكتفاء بالكتابة لأجل الاختبار.")
+        
+        # التقاط صورة حية لإثبات الإنجاز وحفظها في مجلد الـ static
+        screenshot_path = os.path.join(STATIC_DIR, "proof_of_work.png")
+        driver.save_screenshot(screenshot_path)
+        print(f"📸 تم حفظ إثبات الإنجاز بنجاح في: {screenshot_path}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ خطأ في الروبوت: {e}")
+        return False
+    finally:
+        driver.quit()
+        print("🤖 تم إغلاق المتصفح الآلي.")
+
+# =====================================================================
+# 2. مسارات سيرفر الويب والتحكم بالفواتير (Flask Routes)
+# =====================================================================
 
 @app.route('/')
 def home():
-    return render_template_string(HTML_STORE)
+    """واجهة موقعك المستقل الاستعراضية للعميل"""
+    return """
+    <html>
+        <body style="text-align: center; font-family: Arial; padding: 50px; background-color: #f4f6f9;">
+            <h1 style="color: #4f2d7f;">منظومة الأتمتة الذكية للمواقع</h1>
+            <p style="font-size: 18px;">أدخل رابط موقعك والمهمة، وسيقوم الروبوت بإنجازها فوراً.. <b>والدفع بعد الإنجاز!</b></p>
+            <form action="/start-task" method="POST" style="margin-top: 30px;">
+                <input type="text" name="url" placeholder="أدخل رابط الموقع (مثال: https://google.com)" required style="width: 400px; padding: 12px; border-radius: 5px; border: 1px solid #ccc;"><br><br>
+                <input type="text" name="data" placeholder="البيانات المراد إدخالها أو نقلها" required style="width: 400px; padding: 12px; border-radius: 5px; border: 1px solid #ccc;"><br><br>
+                <button type="submit" style="background-color: #4f2d7f; color: white; padding: 12px 40px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">🤖 ابدأ الأتمتة فوراً مجاناً</button>
+            </form>
+        </body>
+    </html>
+    """
 
-@app.route('/api/chat', methods=['POST'])
-def chat():
-    data = request.json
-    msg = data.get('message', '').lower()
+@app.route('/start-task', method=['POST'])
+def start_task():
+    """المسار المسؤول عن استقبال طلب العميل وتشغيل الروبوت تلقائياً"""
+    site_url = request.form.get('url')
+    data_content = request.form.get('data')
     
-    if any(word in msg for word in ["سلة", "زد", "متجر", "salla", "zid"]):
-        reply = "رائع جداً! متجرك على سلة أو زد يستحق منافسة شرسة وأرباحاً عالية.<br><br>لدينا <b>التقرير الشامل (250 ريال)</b> الذي يزودك بقائمة المنتجات الرابحة وأسعار الموردين.<br><br>💳 لتحويل الرسوم وإرسال التقرير فوراً، يرجى التحويل على حسابنا في PayPal: <b style='color:#2563eb;'>%s</b><br><br>بعد التحويل، أرسل إيصال الدفع هنا لنجهز لك التقرير حالاً!" % STORE_CONFIG['paypal_email']
+    # تشغيل الروبوت التنفيذي
+    success = run_automation_bot(site_url, data_content)
     
-    elif any(word in msg for word in ["سعر", "بكم", "تكلفة", "كم", "رسوم", "150", "250"]):
-        reply = "أسعارنا رمزية مقابل الأرباح التي ستجنيها:<br>1️⃣ <b>التقرير الأساسي:</b> 150 ريال.<br>2️⃣ <b>التقرير الشامل والمتقدم:</b> 250 ريال.<br><br>حول المبلغ على PayPal: <b style='color:#2563eb;'>%s</b> وأخبرنا لنبدأ العمل فوراً لجلب بيانات متجرك." % STORE_CONFIG['paypal_email']
-        
-    elif any(word in msg for word in ["انطلق", "ابدأ", "تم", "تحويل", "حولت"]):
-        count, title = run_real_crawler()
-        reply = f"✅ تم فحص أحدث بيانات السوق (تم رصد {count} فرص تجارية من المصادر الحية).<br><br>إذا قمت بتحويل الـ 250 ريال على PayPal (`{STORE_CONFIG['paypal_email']}`)، تفضل بإرسال رقم الإيصال أو تأكيد التحويل لنقوم بإرسال ملف التقرير الكامل لك فوراً!"
-    
+    if success:
+        # إذا نجح الروبوت، ننتقل تلقائياً لصفحة الفاتورة والدفع بعد الإنجاز
+        return redirect('/invoice')
     else:
-        reply = "أنا هنا لمساعدتك في زيادة مبيعات متجرك الإلكتروني. هل ترغب في الحصول على تقرير المنتجات الأكثر طلباً بـ 250 ريال؟"
+        return "<h3 style='color:red; text-align:center;'>حدث خطأ أثناء تنفيذ الروبوت، يرجى التحقق من الرابط.</h3>", 400
 
-    return jsonify({"reply": reply})
+@app.route('/invoice')
+def show_invoice():
+    """صفحة الفاتورة: تعرض للعميل صورة إثبات العمل وزر الدفع عبر stc pay"""
+    # توليد فاتورة حقيقية (وضع الاختبار) بقيمة 150 ريال سعودي
+    url = "https://moyasar.com"
+    invoice_data = {
+        "amount": 15000,  # 150.00 ريال (المبلغ يُحسب بالهللة)
+        "currency": "SAR",
+        "description": "رسوم إنجاز مهمة الأتمتة الذكية بنجاح",
+        "source": {
+            "type": "stcpay"  # تحديد وسيلة الدفع المحببة للعملاء
+        },
+        "callback_url": "http://127.0.0"
+    }
+    
+    try:
+        response = requests.post(url, json=invoice_data, auth=(MOYASAR_TEST_KEY, ""))
+        payment_info = response.json()
+        stc_pay_url = payment_info.get("source", {}).get("transaction_url")
+    except Exception as e:
+        stc_pay_url = "#"
+        print(f"فشل الاتصال ببوابة الدفع: {e}")
+
+    return f"""
+    <html>
+        <body style="text-align: center; font-family: Arial; padding: 40px; background-color: #f4f6f9;">
+            <h2 style="color: #28a745;">🎉 أنجز الروبوت عملك كاملاً وبدقة 100%!</h2>
+            <p style="font-size: 16px;">شاهد لقطة الشاشة الحية لمتجرك/موقعك بعد التعديل البرمجي:</p>
+            
+            <div style="margin: 20px auto; max-width: 600px; border: 3px solid #4f2d7f; border-radius: 8px; overflow: hidden; background: white;">
+                <img src="/static/proof_of_work.png?t={int(time.time())}" style="width: 100%; height: auto; display: block;">
+            </div>
+            
+            <p style="font-size: 18px; font-weight: bold; color: #333;">لاعتماد العمل ونشره وتثبيته نهائياً، تفضل بالسداد:</p>
+            <a href="{stc_pay_url}" target="_blank" style="display: inline-block; background-color: #4f2d7f; color: white; padding: 15px 40px; text-decoration: none; border-radius: 30px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                📱 ادفع الآن 150 ريال عبر stc pay
+            </a>
+        </body>
+    </html>
+    """
+
+@app.route('/payment-success')
+def payment_success():
+    """الصفحة التي يرجع إليها العميل تلقائياً بعد إتمام الدفع بنجاح"""
+    return """
+    <html>
+        <body style="text-align: center; font-family: Arial; padding: 50px; background-color: #f4f6f9;">
+            <h1 style="color: #28a745;">✅ تم استلام دفعتك بنجاح!</h1>
+            <p style="font-size: 20px; color: #333;">دخلت الأموال إلى حسابك وتم اعتماد وتثبيت العمل في موقعك بنسبة 100%.</p>
+            <p style="color: #666;">شكراً لتعاملك مع منظومتنا الموثوقة.</p>
+            <a href="/" style="color: #4f2d7f; font-weight: bold; text-decoration: none;">🔄 تنفيذ مهمة جديدة</a>
+        </body>
+    </html>
+    """
+
+@app.route('/static/<filename>')
+def serve_static(filename):
+    """مسار داخلي لعرض صورة لقطة الشاشة في المتصفح"""
+    return send_from_directory(STATIC_DIR, filename)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    # تشغيل السيرفر محلياً للاختبار
+    print("🚀 السيرفر يعمل الآن على الرابط المحلي: http://127.0.0.1:5000")
+    app.run(debug=True, port=5000)

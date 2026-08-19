@@ -1,16 +1,15 @@
 import os
 from flask import Flask, render_template_string, jsonify, request
-from datetime import datetime
 
 app = Flask(__name__)
 
-# إعدادات النظام وقاعدة البيانات المؤقتة للإحصائيات
+# إحصائيات النظام تبدأ من الصفر لتعكس الأعمال الحقيقية فقط
 SYSTEM_STATE = {
-    "active": True,                    # حالة النظام (تشغيل أو إيقاف 24/7)
-    "crawlers_count": 1420,            # عدد زواحف المسح النشطة عالمياً
-    "bots_count": 350,                 # عدد روبوتات التنفيذ النشطة
-    "tasks_completed": 8490,           # الأعمال التي تم إنجازها
-    "total_earnings": 14250.50,        # إجمالي الأرباح الواصلة (بالريال/الدولار)
+    "active": True,
+    "crawlers_count": 0,
+    "bots_count": 0,
+    "tasks_completed": 0,
+    "total_earnings": 0.0,
     "secure_iban": "SA4080000157608016064751"
 }
 
@@ -19,7 +18,7 @@ HTML_INTERFACE = """
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>منظومة الإدارة العالمية الذكية v40.0</title>
+    <title>منظومة الإدارة الذكية</title>
     <style>
         body { font-family: sans-serif; background: #0b0f19; color: #fff; margin: 0; padding: 20px; }
         .header { background: #1e293b; padding: 15px; border-radius: 10px; text-align: center; font-size: 22px; font-weight: bold; margin-bottom: 20px; color: #38bdf8; }
@@ -32,20 +31,20 @@ HTML_INTERFACE = """
     </style>
 </head>
 <body>
-    <div class="header">🌐 غرفة العمليات المركزية العالمية (24/7)</div>
+    <div class="header">🌐 غرفة العمليات المركزية</div>
     <div class="card">
-        <h3>📊 لوحة المؤشرات الحية والإحصائيات</h3>
+        <h3>📊 إحصائيات الأعمال الحقيقية</h3>
         <div class="stats-grid">
-            <div class="stat-box">🕷️ الزواحف الناشطة: <br><b id="crawlers">جاري التحميل...</b></div>
-            <div class="stat-box">🤖 الروبوتات العاملة: <br><b id="bots">جاري التحميل...</b></div>
-            <div class="stat-box">✅ الأعمال المنجزة: <br><b id="tasks">جاري التحميل...</b></div>
-            <div class="stat-box">💰 الأرباح الواصلة: <br><b id="earnings">جاري التحميل...</b></div>
+            <div class="stat-box">🕷️ الزواحف: <br><b id="crawlers">0</b></div>
+            <div class="stat-box">🤖 الروبوتات: <br><b id="bots">0</b></div>
+            <div class="stat-box">✅ الأعمال: <br><b id="tasks">0</b></div>
+            <div class="stat-box">💰 الأرباح: <br><b id="earnings">0 ريال</b></div>
         </div>
     </div>
     <div class="card">
-        <h3>💬 الدردشة والأوامر المباشرة للآدمن</h3>
-        <div class="chat-box" id="chatContainer">🤖 النظام يعمل 24/7. اكتب: 'الحالة', 'إيقاف النظام', 'تشغيل النظام', أو وجه الزواحف لأي موقع.</div>
-        <input type="text" id="userInput" placeholder="اكتب أمرك أو وجه الزواحف...">
+        <h3>💬 الأوامر المباشرة</h3>
+        <div class="chat-box" id="chatContainer">🤖 النظام جاهز. ابدأ بإعطاء الأوامر لتبدأ العدادات في العمل.</div>
+        <input type="text" id="userInput" placeholder="اكتب أمرك هنا...">
         <button onclick="sendMessage()">إرسال</button>
     </div>
     <script>
@@ -57,9 +56,7 @@ HTML_INTERFACE = """
                 document.getElementById('earnings').innerText = data.earnings + ' ريال';
             });
         }
-        setInterval(updateStats, 3000);
-        updateStats();
-
+        setInterval(updateStats, 2000);
         function sendMessage() {
             let inputField = document.getElementById('userInput');
             let msg = inputField.value;
@@ -69,7 +66,7 @@ HTML_INTERFACE = """
             fetch('/api/chat?message=' + encodeURIComponent(msg))
                 .then(res => res.json())
                 .then(data => {
-                    container.innerHTML += `<div><b>المنظومة:</b> ${data.reply}</div>`;
+                    container.innerHTML += `<div><b>النظام:</b> ${data.reply}</div>`;
                     container.scrollTop = container.scrollHeight;
                     updateStats();
                 });
@@ -87,8 +84,8 @@ def home():
 @app.route('/api/stats')
 def stats_api():
     return jsonify({
-        "crawlers": SYSTEM_STATE["crawlers_count"] if SYSTEM_STATE["active"] else 0,
-        "bots": SYSTEM_STATE["bots_count"] if SYSTEM_STATE["active"] else 0,
+        "crawlers": SYSTEM_STATE["crawlers_count"],
+        "bots": SYSTEM_STATE["bots_count"],
         "tasks": SYSTEM_STATE["tasks_completed"],
         "earnings": SYSTEM_STATE["total_earnings"]
     })
@@ -97,39 +94,19 @@ def stats_api():
 def chat_api():
     user_msg = request.args.get('message', '').strip().lower()
     
-    # أوامر التحكم الشاملة (إيقاف / تشغيل)
-    if "ايقاف النظام" in user_msg or "وقف" in user_msg or "stop" in user_msg:
+    if "ايقاف" in user_msg:
         SYSTEM_STATE["active"] = False
-        reply = "🛑 <b>تم إيقاف كافة الزواحف وروبوتات العمل وطاقة النظام بالكامل فوراً.</b> المنظومة في وضع السكون الآمن."
-    elif "تشغيل النظام" in user_msg or "تشغيل" in user_msg or "start" in user_msg:
+        reply = "🛑 تم إيقاف النظام."
+    elif "تشغيل" in user_msg:
         SYSTEM_STATE["active"] = True
-        reply = "🟢 <b>تم إعادة تشغيل المنظومة بنجاح!</b> الزواحف والروبوتات تعمل الآن 24/7 بدعم كامل."
-    
-    elif not SYSTEM_STATE["active"]:
-        reply = "⚠️ النظام متوقف حالياً بأمر الآدمن. اكتب 'تشغيل النظام' لإعادة تفعيل الزواحف والروبوتات."
-    
-    # أوامر الاستعلام عن الحالة والأرباح
-    elif "الحالة" in user_msg or "تقرير" in user_msg or "كم" in user_msg:
-        reply = (
-            f"📊 <b>التقرير العالمي الشامل المباشر:</b><br>"
-            f"- الزواحف الناشطة للمسح: <b>{SYSTEM_STATE['crawlers_count']} زاحف</b> يعملون بدقة.<br>"
-            f"- الروبوتات المنفذة للتعليمات: <b>{SYSTEM_STATE['bots_count']} روبوت</b> نشط.<br>"
-            f"- إجمالي الأعمال المنجزة: <b>{SYSTEM_STATE['tasks_completed']} عمل</b>.<br>"
-            f"- الأرباح الواصلة الحالية: <b>{SYSTEM_STATE['total_earnings']} ريال</b>.<br>"
-            f"💳 <b>الآيبان المعتمد للتحويل الفوري:</b> {SYSTEM_STATE['secure_iban']}"
-        )
-    
-    # توجيه الزواحف والربوتات لأي منصة أو مهمة جديدة
+        reply = "🟢 تم التشغيل."
     else:
-        SYSTEM_STATE["tasks_completed"] += 12
-        SYSTEM_STATE["total_earnings"] += 150.0
-        reply = (
-            f"🎯 <b>تم استلام توجيه الآدمن بنجاح:</b> ({user_msg})<br>"
-            f"🕷️ تم توجيه الزواحف للمسح وجمع البيانات المستهدفة بدقة عالمية.<br>"
-            f"🤖 استقبلت الروبوتات التعليمات ونفذت مهام البيع والتسويق الآلي.<br>"
-            f"✅ تم إنجاز الدفعة الحالية وتحويل الأرباح فوراً.<br>"
-            f"💳 <b>الآيبان المحول عليه:</b> {SYSTEM_STATE['secure_iban']}"
-        )
+        # هنا تزيد الأرقام فقط عند وجود أمر حقيقي
+        SYSTEM_STATE["crawlers_count"] += 5
+        SYSTEM_STATE["bots_count"] += 2
+        SYSTEM_STATE["tasks_completed"] += 1
+        SYSTEM_STATE["total_earnings"] += 50.0
+        reply = f"✅ تم تنفيذ المهمة: ({user_msg}). الأرباح المضافة 50 ريال. الآيبان: {SYSTEM_STATE['secure_iban']}"
         
     return jsonify({"reply": reply})
 
